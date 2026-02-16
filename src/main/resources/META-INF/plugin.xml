@@ -1,10 +1,10 @@
 <idea-plugin>
 <id>com.tt4.rider-nuget-autofill</id>
-<name>Rider NuGet Auto-Fill</name>
+<name>NuGet Auto-Fill</name>
 <vendor email="martin.schloegl@tt-four.com" url="https://github.com/ms-tt-four">Martin Schloegl</vendor>
 
 <description><![CDATA[
-        <h1>Rider NuGet Auto-Fill</h1>
+        <h1>NuGet Auto-Fill</h1>
         <p>Automatically detects and fills NuGet feed credential dialogs in JetBrains Rider.</p>
 
         <h3>Features:</h3>
