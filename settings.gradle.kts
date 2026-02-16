@@ -1,0 +1,1 @@
+rootProject.name = "rider-nuget-auto-fill-plugin"

@@ -1,0 +1,65 @@
+<idea-plugin>
+<id>com.tt4.rider-nuget-autofill</id>
+<name>Rider NuGet Auto-Fill</name>
+<vendor email="martin.schloegl@tt-four.com" url="https://github.com/ms-tt-four">Martin Schloegl</vendor>
+
+<description><![CDATA[
+        <h1>Rider NuGet Auto-Fill</h1>
+        <p>Automatically detects and fills NuGet feed credential dialogs in JetBrains Rider.</p>
+
+        <h3>Features:</h3>
+        <ul>
+            <li>Automatic detection of NuGet credential dialogs</li>
+            <li>Secure storage of feed credentials using system keychain</li>
+            <li>Support for multiple NuGet feeds (NuGet.org, Azure DevOps, Artifactory, GitHub Packages, etc.)</li>
+            <li>Configurable auto-submit behavior</li>
+            <li>Easy credential management interface</li>
+        </ul>
+
+        <h3>How to Use:</h3>
+        <ol>
+            <li>Go to Tools → Manage NuGet Credentials</li>
+            <li>Add your NuGet feed credentials</li>
+            <li>The plugin will automatically fill credentials when Rider requests authentication</li>
+        </ol>
+
+        <h3>Supported NuGet Feeds:</h3>
+        <ul>
+            <li>NuGet.org</li>
+            <li>Azure DevOps Artifacts</li>
+            <li>JFrog Artifactory</li>
+            <li>Sonatype Nexus</li>
+            <li>GitHub Packages</li>
+            <li>MyGet</li>
+            <li>Any custom NuGet feed requiring authentication</li>
+        </ul>
+    ]]></description>
+
+<change-notes><![CDATA[
+        <h3>Version 1.0.0</h3>
+        <ul>
+            <li>Initial release</li>
+            <li>Automatic NuGet dialog detection and credential filling</li>
+            <li>Secure credential storage</li>
+            <li>Multi-feed support with individual settings</li>
+            <li>Management UI for easy configuration</li>
+        </ul>
+    ]]></change-notes>
+
+    <idea-version since-build="241" until-build="251.*"/>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <applicationListeners>
+        <listener class="com.tt4.rider.nuget.NuGetStartupListener"
+                  topic="com.intellij.openapi.application.ApplicationActivationListener"/>
+    </applicationListeners>
+
+    <actions>
+        <action id="com.tt4.rider.nuget.ManageCredentials"
+                class="com.tt4.rider.nuget.actions.NuGetCredentialsAction"
+                text="Manage NuGet Credentials">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
