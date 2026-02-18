@@ -46,9 +46,9 @@
         </ul>
     ]]></change-notes>
 
-    <idea-version since-build="241" until-build="251.*"/>
+    <idea-version since-build="241"/>
 
-    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.rider</depends>
 
     <applicationListeners>
         <listener class="com.tt4.rider.nuget.NuGetStartupListener"

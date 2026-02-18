@@ -1,3 +1,6 @@
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+import org.jetbrains.intellij.platform.gradle.models.ProductRelease
+
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.1.0"
@@ -5,7 +8,7 @@ plugins {
 }
 
 group = "com.tt4"
-version = "1.0.2"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -18,7 +21,9 @@ repositories {
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     intellijPlatform {
-        rider("2024.3", useInstaller = false)
+        rider("2024.3") {
+            useInstaller = false
+        }
         //testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
         // Add necessary plugin dependencies for compilation here, example:
@@ -28,20 +33,19 @@ dependencies {
 
 intellijPlatform {
     pluginConfiguration {
-        version = "1.0.0"
         ideaVersion {
             sinceBuild = "241"
-            untilBuild = "251.*"
+            untilBuild = provider { null }
         }
-
-        changeNotes = """
-            Initial version
-        """.trimIndent()
     }
 
     pluginVerification {
         ides {
-            recommended()
+            select {
+                types = listOf(IntelliJPlatformType.Rider)
+                channels = listOf(ProductRelease.Channel.RELEASE)
+                sinceBuild = "241"
+            }
         }
     }
 }
