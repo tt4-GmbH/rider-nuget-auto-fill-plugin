@@ -1,0 +1,40 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- NuGet package box -->
+  <rect x="4" y="16" width="24" height="20" rx="2" fill="url(#boxGradDark)"/>
+  <!-- Box lid -->
+  <rect x="2" y="12" width="28" height="6" rx="1.5" fill="url(#lidGradDark)"/>
+  <!-- Ribbon on box -->
+  <rect x="14" y="12" width="4" height="20" fill="url(#ribbonGradDark)"/>
+  <!-- Key badge background circle -->
+  <circle cx="31" cy="13" r="6.5" fill="url(#keyBgGradDark)" stroke="#3A4A5A" stroke-width="1.2"/>
+  <!-- Key bow (ring) -->
+  <circle cx="29.5" cy="11.5" r="2.8" stroke="url(#keyDetailGradDark)" stroke-width="1.8" fill="none"/>
+  <circle cx="29.5" cy="11.5" r="1.1" fill="url(#keyDetailGradDark)"/>
+  <!-- Key blade (shaft) -->
+  <rect x="31.5" y="12.7" width="5.5" height="1.6" rx="0.8" fill="url(#keyDetailGradDark)"/>
+  <!-- Key teeth -->
+  <rect x="35.2" y="14.3" width="1.4" height="1.6" rx="0.4" fill="url(#keyDetailGradDark)"/>
+  <rect x="33.0" y="14.3" width="1.4" height="1.6" rx="0.4" fill="url(#keyDetailGradDark)"/>
+  <defs>
+    <linearGradient id="boxGradDark" x1="4" y1="16" x2="28" y2="36" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6AADEE"/>
+      <stop offset="1" stop-color="#4A82CC"/>
+    </linearGradient>
+    <linearGradient id="lidGradDark" x1="2" y1="12" x2="30" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7BBEF5"/>
+      <stop offset="1" stop-color="#5590D8"/>
+    </linearGradient>
+    <linearGradient id="ribbonGradDark" x1="14" y1="12" x2="18" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE08A"/>
+      <stop offset="1" stop-color="#FFC233"/>
+    </linearGradient>
+    <linearGradient id="keyBgGradDark" x1="24.5" y1="6.5" x2="37.5" y2="19.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1E2D3D"/>
+      <stop offset="1" stop-color="#111C28"/>
+    </linearGradient>
+    <linearGradient id="keyDetailGradDark" x1="26.5" y1="8.5" x2="37" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE08A"/>
+      <stop offset="1" stop-color="#FFC233"/>
+    </linearGradient>
+  </defs>
+</svg>
