@@ -6,6 +6,10 @@ import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.*
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.application.PathManager
+import com.intellij.openapi.util.JDOMUtil
+import com.intellij.util.xmlb.XmlSerializer
+import java.io.File
 
 /**
  * Data class for NuGet credentials
@@ -31,6 +35,12 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
 
         private const val CREDENTIAL_SERVICE_NAME = "NuGetAutoFill"
         private val logger = thisLogger()
+
+        private val backupFile: File
+            get() {
+                val configPath = PathManager.getConfigPath()
+                return File(configPath, "nuget-credentials-backup.xml")
+            }
     }
 
     /**
@@ -55,7 +65,46 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
     override fun getState(): State = state
 
     override fun loadState(state: State) {
+        // Guard against overwriting existing credentials with an empty state,
+        // which can happen when Rider crashes or is force-killed mid-write
+        if (state.feedConfigurations.isEmpty() && this.state.feedConfigurations.isNotEmpty()) {
+            logger.warn("Ignoring empty state load — keeping ${this.state.feedConfigurations.size} existing feed(s)")
+            return
+        }
+
+        // If the loaded state is empty, try to restore from backup
+        if (state.feedConfigurations.isEmpty()) {
+            val restored = tryRestoreFromBackup()
+            if (restored != null) {
+                logger.warn("Main state was empty — restored ${restored.feedConfigurations.size} feed(s) from backup")
+                this.state = restored
+                return
+            }
+        }
+
         this.state = state
+    }
+
+    private fun tryRestoreFromBackup(): State? {
+        return try {
+            val backup = backupFile
+            if (!backup.exists()) return null
+            val element = JDOMUtil.load(backup)
+            XmlSerializer.deserialize(element, State::class.java)
+        } catch (e: Exception) {
+            logger.warn("Failed to restore from backup", e)
+            null
+        }
+    }
+
+    private fun saveBackup() {
+        try {
+            if (state.feedConfigurations.isEmpty()) return
+            val element = XmlSerializer.serialize(state)
+            JDOMUtil.write(element, backupFile)
+        } catch (e: Exception) {
+            logger.warn("Failed to save credential backup", e)
+        }
     }
 
     /**
@@ -84,6 +133,7 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
         PasswordSafe.instance.set(credentialAttributes, secureCredentials)
 
         logger.info("Successfully stored credentials for: $normalizedUrl")
+        saveBackup()
     }
 
     /**
@@ -145,6 +195,7 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
             userName = normalizedUrl
         )
         PasswordSafe.instance.set(credentialAttributes, null)
+        saveBackup()
     }
 
     /**

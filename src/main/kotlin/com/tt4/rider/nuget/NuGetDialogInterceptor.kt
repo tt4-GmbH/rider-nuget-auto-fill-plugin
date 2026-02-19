@@ -133,7 +133,7 @@ class NuGetDialogInterceptor : Disposable {
         )
 
         // If it's a generic credential dialog, check content for NuGet indicators
-        if (credentialPatterns.any { pattern -> title.contains(pattern) }) {
+        if (credentialPatterns.any { pattern -> title.contains(pattern, true) }) {
             return true
         }
 
@@ -144,7 +144,7 @@ class NuGetDialogInterceptor : Disposable {
             "package source credentials"
         )
 
-        return nugetPatterns.any { pattern -> title.contains(pattern) }
+        return nugetPatterns.any { pattern -> title.contains(pattern, true) }
     }
 
     /**
