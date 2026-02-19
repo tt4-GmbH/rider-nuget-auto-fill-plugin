@@ -41,6 +41,16 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
                 val configPath = PathManager.getConfigPath()
                 return File(configPath, "nuget-credentials-backup.xml")
             }
+
+        /**
+         * Pure function: determines which state to apply on loadState().
+         * Returns null if the incoming state should be ignored (empty incoming
+         * while current already has feeds — crash/corruption guard).
+         */
+        internal fun computeNewState(incoming: State, current: State): State? {
+            if (incoming.feedConfigurations.isEmpty() && current.feedConfigurations.isNotEmpty()) return null
+            return incoming
+        }
     }
 
     /**
@@ -65,15 +75,15 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
     override fun getState(): State = state
 
     override fun loadState(state: State) {
-        // Guard against overwriting existing credentials with an empty state,
-        // which can happen when Rider crashes or is force-killed mid-write
-        if (state.feedConfigurations.isEmpty() && this.state.feedConfigurations.isNotEmpty()) {
+        val newState = computeNewState(state, this.state)
+
+        if (newState == null) {
             logger.warn("Ignoring empty state load — keeping ${this.state.feedConfigurations.size} existing feed(s)")
             return
         }
 
         // If the loaded state is empty, try to restore from backup
-        if (state.feedConfigurations.isEmpty()) {
+        if (newState.feedConfigurations.isEmpty()) {
             val restored = tryRestoreFromBackup()
             if (restored != null) {
                 logger.warn("Main state was empty — restored ${restored.feedConfigurations.size} feed(s) from backup")
@@ -82,7 +92,7 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
             }
         }
 
-        this.state = state
+        this.state = newState
     }
 
     private fun tryRestoreFromBackup(): State? {
@@ -235,7 +245,7 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
     /**
      * Normalize URL for consistent storage and lookup
      */
-    private fun normalizeUrl(url: String): String {
+    internal fun normalizeUrl(url: String): String {
         return url.trim()
             .lowercase()
             .removeSuffix("/")

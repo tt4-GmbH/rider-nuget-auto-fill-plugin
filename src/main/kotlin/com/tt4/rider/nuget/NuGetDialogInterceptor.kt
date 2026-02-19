@@ -21,6 +21,29 @@ class NuGetDialogInterceptor : Disposable {
         }
 
         private val logger = thisLogger()
+
+        /** Regex matching NuGet feed index.json URLs — exposed for testing */
+        internal val URL_PATTERN = Regex("""https?://[^\s<>"]*?/index\.json(?=[\s<>"]|$)""")
+
+        /** Pure title-matching logic — exposed for testing */
+        internal fun matchesCredentialTitle(title: String): Boolean {
+            val credentialPatterns = listOf(
+                "enter credentials",
+                "authentication required",
+                "login required",
+                "credentials for",
+                "sign in",
+                "authenticate"
+            )
+            if (credentialPatterns.any { pattern -> title.contains(pattern, ignoreCase = true) }) return true
+
+            val nugetPatterns = listOf(
+                "nuget authentication",
+                "nuget credentials",
+                "package source credentials"
+            )
+            return nugetPatterns.any { pattern -> title.contains(pattern, ignoreCase = true) }
+        }
     }
 
     private val credentialStore = NuGetCredentialsStore.getInstance()
@@ -120,31 +143,8 @@ class NuGetDialogInterceptor : Disposable {
      * Check dialog by window title
      */
     private fun checkByTitle(window: Window): Boolean {
-        val title = getWindowTitle(window)?.lowercase() ?: return false
-
-        // Generic credential dialog patterns
-        val credentialPatterns = listOf(
-            "enter credentials",
-            "authentication required",
-            "login required",
-            "credentials for",
-            "sign in",
-            "authenticate"
-        )
-
-        // If it's a generic credential dialog, check content for NuGet indicators
-        if (credentialPatterns.any { pattern -> title.contains(pattern, true) }) {
-            return true
-        }
-
-        // NuGet-specific title patterns
-        val nugetPatterns = listOf(
-            "nuget authentication",
-            "nuget credentials",
-            "package source credentials"
-        )
-
-        return nugetPatterns.any { pattern -> title.contains(pattern, true) }
+        val title = getWindowTitle(window) ?: return false
+        return matchesCredentialTitle(title)
     }
 
     /**
@@ -167,7 +167,7 @@ class NuGetDialogInterceptor : Disposable {
     }
 
     private fun findUrlInLabels(container: Container): String? {
-        val urlPattern = Regex("""https?://[^\s<>"]*?/index\.json(?=[\s<>")]|$)""")
+        val urlPattern = URL_PATTERN
 
         // Check immediate children
         for (component in container.components) {

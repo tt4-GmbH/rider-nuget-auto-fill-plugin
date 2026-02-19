@@ -28,6 +28,26 @@ class FeedCredentialsDialog(
     private val existingCredentials: NuGetCredentials?
 ) : DialogWrapper(parent.contentPanel, true) {
 
+    companion object {
+        internal const val NUGET_ORG_URL = "https://api.nuget.org/v3/index.json"
+
+        internal fun buildAzureDevOpsUrl(org: String, feed: String): String =
+            "https://pkgs.dev.azure.com/$org/_packaging/$feed/nuget/v3/index.json"
+
+        internal fun buildGitHubPackagesUrl(owner: String): String =
+            "https://nuget.pkg.github.com/$owner/index.json"
+
+        internal fun isValidUrl(url: String): Boolean {
+            return try {
+                val uri = java.net.URI(url)
+                val urlObj = uri.toURL()
+                urlObj.protocol in listOf("http", "https")
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
     private lateinit var feedUrlField: JBTextField
     private lateinit var usernameField: JBTextField
     private lateinit var passwordField: JBPasswordField
@@ -133,18 +153,8 @@ class FeedCredentialsDialog(
 
     fun getCredentials(): NuGetCredentials? = result
 
-    private fun isValidUrl(url: String): Boolean {
-        return try {
-            val uri = java.net.URI(url)
-            val urlObj = uri.toURL()
-            urlObj.protocol in listOf("http", "https")
-        } catch (_: Exception) {
-            false
-        }
-    }
-
     private fun setupNuGetOrg() {
-        feedUrlField.text = "https://api.nuget.org/v3/index.json"
+        feedUrlField.text = NUGET_ORG_URL
         usernameField.requestFocusInWindow()
     }
 
@@ -163,7 +173,7 @@ class FeedCredentialsDialog(
             )
 
             if (!feed.isNullOrBlank()) {
-                feedUrlField.text = "https://pkgs.dev.azure.com/$org/_packaging/$feed/nuget/v3/index.json"
+                feedUrlField.text = buildAzureDevOpsUrl(org, feed)
                 usernameField.requestFocusInWindow()
             }
         }
@@ -177,7 +187,7 @@ class FeedCredentialsDialog(
         )
 
         if (!owner.isNullOrBlank()) {
-            feedUrlField.text = "https://nuget.pkg.github.com/$owner/index.json"
+            feedUrlField.text = buildGitHubPackagesUrl(owner)
             usernameField.text = owner
             passwordField.requestFocusInWindow()
         }

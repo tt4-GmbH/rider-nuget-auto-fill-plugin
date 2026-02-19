@@ -36,13 +36,22 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.1</h3>
+        <ul>
+            <li>Fixed: credentials being lost when Rider freezes or is force-killed (e.g. due to proxy issues)</li>
+            <li>Credentials are now automatically restored from a backup if the main state file is empty or corrupted on startup</li>
+            <li>Fixed: credential dialog detection was case-sensitive, causing some dialogs to be missed</li>
+        </ul>
+
         <h3>Version 1.0.0</h3>
         <ul>
             <li>Initial release</li>
-            <li>Automatic NuGet dialog detection and credential filling</li>
-            <li>Secure credential storage</li>
-            <li>Multi-feed support with individual settings</li>
-            <li>Management UI for easy configuration</li>
+            <li>Automatic NuGet credential dialog detection and filling (case-insensitive)</li>
+            <li>Secure credential storage using the system keychain (macOS Keychain, Windows Credential Manager)</li>
+            <li>Crash-resistant storage — credentials are automatically restored from backup if Rider is force-killed or freezes</li>
+            <li>Multi-feed support with per-feed enable/disable and auto-submit settings</li>
+            <li>Quick setup templates for NuGet.org, Azure DevOps, and GitHub Packages</li>
+            <li>Management UI accessible via Tools → Manage NuGet Credentials</li>
         </ul>
     ]]></change-notes>
 
