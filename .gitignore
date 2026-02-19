@@ -42,3 +42,6 @@ bin/
 .DS_Store
 /.kotlin/sessions/
 /.intellijPlatform/
+
+### Claude Code ###
+.claude/settings.local.json
