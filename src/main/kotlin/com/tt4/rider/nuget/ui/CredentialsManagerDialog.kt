@@ -2,6 +2,7 @@ package com.tt4.rider.nuget.ui
 
 import com.tt4.rider.nuget.NuGetCredentialsStore
 import com.tt4.rider.nuget.NuGetDialogInterceptor
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
@@ -148,14 +149,26 @@ class CredentialsManagerDialog(project: Project?) : DialogWrapper(project, true)
     private fun addFeed() {
         val dialog = FeedCredentialsDialog(this, null, null)
         if (dialog.showAndGet()) {
-            val credentials = dialog.getCredentials()
-            if (credentials != null) {
-                credentialStore.storeCredentials(credentials)
-                loadCredentials()
-                Messages.showInfoMessage(
-                    "Credentials stored successfully for: ${credentials.feedUrl}",
-                    "Success"
-                )
+            val credentials = dialog.getCredentials() ?: return
+            // PasswordSafe.set() is blocking I/O — must not be called on EDT
+            ApplicationManager.getApplication().executeOnPooledThread {
+                try {
+                    credentialStore.storeCredentials(credentials)
+                    ApplicationManager.getApplication().invokeLater {
+                        loadCredentials()
+                        Messages.showInfoMessage(
+                            "Credentials stored successfully for: ${credentials.feedUrl}",
+                            "Success"
+                        )
+                    }
+                } catch (e: Exception) {
+                    ApplicationManager.getApplication().invokeLater {
+                        Messages.showErrorDialog(
+                            "Failed to store credentials for: ${credentials.feedUrl}\n\n${e.message}\n\nPlease check your system keychain settings.",
+                            "Storage Error"
+                        )
+                    }
+                }
             }
         }
     }
@@ -165,18 +178,35 @@ class CredentialsManagerDialog(project: Project?) : DialogWrapper(project, true)
         if (selectedRow < 0) return
 
         val feedUrl = tableModel.getValueAt(selectedRow, 0) as String
-        val existingCredentials = credentialStore.getCredentials(feedUrl)
 
-        val dialog = FeedCredentialsDialog(this, feedUrl, existingCredentials)
-        if (dialog.showAndGet()) {
-            val credentials = dialog.getCredentials()
-            if (credentials != null) {
-                credentialStore.storeCredentials(credentials)
-                loadCredentials()
-                Messages.showInfoMessage(
-                    "Credentials updated successfully for: ${credentials.feedUrl}",
-                    "Success"
-                )
+        // PasswordSafe.get() is blocking I/O — load existing credentials on background thread
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val existingCredentials = credentialStore.getCredentials(feedUrl)
+            ApplicationManager.getApplication().invokeLater {
+                val dialog = FeedCredentialsDialog(this, feedUrl, existingCredentials)
+                if (dialog.showAndGet()) {
+                    val credentials = dialog.getCredentials() ?: return@invokeLater
+                    // PasswordSafe.set() is blocking I/O — must not be called on EDT
+                    ApplicationManager.getApplication().executeOnPooledThread {
+                        try {
+                            credentialStore.storeCredentials(credentials)
+                            ApplicationManager.getApplication().invokeLater {
+                                loadCredentials()
+                                Messages.showInfoMessage(
+                                    "Credentials updated successfully for: ${credentials.feedUrl}",
+                                    "Success"
+                                )
+                            }
+                        } catch (e: Exception) {
+                            ApplicationManager.getApplication().invokeLater {
+                                Messages.showErrorDialog(
+                                    "Failed to store credentials for: ${credentials.feedUrl}\n\n${e.message}\n\nPlease check your system keychain settings.",
+                                    "Storage Error"
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -205,21 +235,30 @@ class CredentialsManagerDialog(project: Project?) : DialogWrapper(project, true)
         if (selectedRow < 0) return
 
         val feedUrl = tableModel.getValueAt(selectedRow, 0) as String
-        val credentials = credentialStore.getCredentials(feedUrl)
 
-        if (credentials != null) {
-            val success = credentialStore.testCredentials(credentials)
-            val message = if (success) {
-                "✅ Connection test successful for:\n$feedUrl"
-            } else {
-                "❌ Connection test failed for:\n$feedUrl\n\nPlease verify your credentials."
+        // PasswordSafe.get() is blocking I/O — must not be called on EDT
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val credentials = credentialStore.getCredentials(feedUrl)
+            ApplicationManager.getApplication().invokeLater {
+                if (credentials != null) {
+                    val success = credentialStore.testCredentials(credentials)
+                    val message = if (success) {
+                        "✅ Connection test successful for:\n$feedUrl"
+                    } else {
+                        "❌ Connection test failed for:\n$feedUrl\n\nPlease verify your credentials."
+                    }
+                    Messages.showMessageDialog(
+                        message,
+                        "Test Result",
+                        if (success) Messages.getInformationIcon() else Messages.getErrorIcon()
+                    )
+                } else {
+                    Messages.showErrorDialog(
+                        "No credentials found for:\n$feedUrl\n\nThe password could not be retrieved from the system keychain.\nTry removing and re-adding this feed.",
+                        "Test Failed"
+                    )
+                }
             }
-
-            Messages.showMessageDialog(
-                message,
-                "Test Result",
-                if (success) Messages.getInformationIcon() else Messages.getErrorIcon()
-            )
         }
     }
 

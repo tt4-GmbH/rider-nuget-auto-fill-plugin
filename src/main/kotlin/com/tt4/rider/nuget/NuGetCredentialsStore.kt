@@ -142,6 +142,13 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
         val secureCredentials = Credentials(credentials.username, credentials.password)
         PasswordSafe.instance.set(credentialAttributes, secureCredentials)
 
+        // Verify the write succeeded by reading back
+        val verification = PasswordSafe.instance.get(credentialAttributes)
+        if (verification == null) {
+            logger.error("PasswordSafe write verification failed for: $normalizedUrl — password was not stored in keychain")
+            throw IllegalStateException("Failed to store password in system keychain for: $normalizedUrl")
+        }
+
         logger.info("Successfully stored credentials for: $normalizedUrl")
         saveBackup()
     }

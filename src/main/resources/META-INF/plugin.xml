@@ -36,6 +36,14 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.3</h3>
+        <ul>
+            <li>Fixed: credentials occasionally not stored correctly due to PasswordSafe being called on the UI thread — all keychain operations are now performed on a background thread</li>
+            <li>Fixed: Test button silently did nothing when credentials could not be retrieved — now shows a clear error message</li>
+            <li>Fixed: storage failures are now detected immediately via read-back verification and reported to the user</li>
+            <li>Fixed: auto-fill engine also called PasswordSafe on the UI thread when a credential dialog was detected — now correctly offloads keychain access to a background thread</li>
+        </ul>
+
         <h3>Version 1.0.2</h3>
         <ul>
             <li>Improved: credential dialog detection now also matches "Authorization Required", "Credentials", "Log In", "Azure DevOps", and "Personal Access Token" dialog titles</li>

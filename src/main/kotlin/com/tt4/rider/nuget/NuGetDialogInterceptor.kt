@@ -89,16 +89,15 @@ class NuGetDialogInterceptor : Disposable {
             if (event is WindowEvent && event.id == WindowEvent.WINDOW_OPENED) {
                 val window = event.window
 
-                // Process in EDT to avoid threading issues
-                SwingUtilities.invokeLater {
-                    try {
-                        if (isNuGetCredentialDialog(window)) {
-                            logger.info("Detected NuGet credential dialog: ${window.javaClass.simpleName}")
-                            processNuGetDialog(window)
-                        }
-                    } catch (e: Exception) {
-                        logger.error("Error processing potential NuGet dialog", e)
+                // Dialog detection (title/content checks) is pure Swing reads — safe on EDT.
+                // processNuGetDialog() offloads PasswordSafe I/O to a background thread internally.
+                try {
+                    if (isNuGetCredentialDialog(window)) {
+                        logger.info("Detected NuGet credential dialog: ${window.javaClass.simpleName}")
+                        processNuGetDialog(window)
                     }
+                } catch (e: Exception) {
+                    logger.error("Error processing potential NuGet dialog", e)
                 }
             }
         }
@@ -151,23 +150,26 @@ class NuGetDialogInterceptor : Disposable {
      * Process detected NuGet dialog
      */
     private fun processNuGetDialog(window: Window) {
-        try {
-            // Extract feed information
-            val feedInfo = extractFeedInformation(window)
-            logger.debug("Extracted feed info: url=${feedInfo.url}, name=${feedInfo.name}")
+        // extractFeedInformation() only reads Swing component text — safe on EDT
+        val feedInfo = extractFeedInformation(window)
+        logger.debug("Extracted feed info: url=${feedInfo.url}, name=${feedInfo.name}")
 
-            // Get stored credentials
-            val credentials = credentialStore.getCredentials(feedInfo.url)
-
-            if (credentials != null && credentialStore.isFeedEnabled(feedInfo.url)) {
-                logger.info("Auto-filling credentials for feed: ${feedInfo.url}")
-                fillCredentials(window, credentials)
-            } else {
-                logger.debug("No credentials found or feed disabled for: ${feedInfo.url}")
+        // PasswordSafe.get() is blocking I/O — must not be called on EDT
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                val credentials = credentialStore.getCredentials(feedInfo.url)
+                // fillCredentials() manipulates Swing components — must run on EDT
+                ApplicationManager.getApplication().invokeLater {
+                    if (credentials != null && credentialStore.isFeedEnabled(feedInfo.url)) {
+                        logger.info("Auto-filling credentials for feed: ${feedInfo.url}")
+                        fillCredentials(window, credentials)
+                    } else {
+                        logger.debug("No credentials found or feed disabled for: ${feedInfo.url}")
+                    }
+                }
+            } catch (e: Exception) {
+                logger.error("Error retrieving credentials for NuGet dialog", e)
             }
-
-        } catch (e: Exception) {
-            logger.error("Error processing NuGet dialog", e)
         }
     }
 
