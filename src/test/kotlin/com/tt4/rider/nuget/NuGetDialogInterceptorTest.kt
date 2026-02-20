@@ -13,6 +13,7 @@ class NuGetDialogInterceptorTest {
 
     @ParameterizedTest
     @ValueSource(strings = [
+        // Original patterns
         "Enter Credentials",
         "ENTER CREDENTIALS",
         "enter credentials",
@@ -25,7 +26,17 @@ class NuGetDialogInterceptorTest {
         "Authenticate",
         "NuGet Authentication",
         "NuGet Credentials",
-        "Package Source Credentials"
+        "Package Source Credentials",
+        // New patterns
+        "Authorization Required",
+        "AUTHORIZATION REQUIRED",
+        "Credentials",
+        "Log In",
+        "LOG IN",
+        "Azure DevOps",
+        "AZURE DEVOPS",
+        "Personal Access Token",
+        "Enter Personal Access Token"
     ])
     fun `matchesCredentialTitle returns true for known credential dialog titles`(title: String) {
         assertTrue(NuGetDialogInterceptor.matchesCredentialTitle(title))
@@ -51,6 +62,8 @@ class NuGetDialogInterceptorTest {
         assertTrue(NuGetDialogInterceptor.matchesCredentialTitle("Please SIGN IN to continue"))
         assertTrue(NuGetDialogInterceptor.matchesCredentialTitle("nuget AUTHENTICATION dialog"))
         assertTrue(NuGetDialogInterceptor.matchesCredentialTitle("PACKAGE SOURCE CREDENTIALS"))
+        assertTrue(NuGetDialogInterceptor.matchesCredentialTitle("Please LOG IN to Azure DevOps"))
+        assertTrue(NuGetDialogInterceptor.matchesCredentialTitle("Enter your PERSONAL ACCESS TOKEN"))
     }
 
     // -------------------------------------------------------------------------

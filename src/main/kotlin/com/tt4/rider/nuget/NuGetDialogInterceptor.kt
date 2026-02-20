@@ -30,10 +30,15 @@ class NuGetDialogInterceptor : Disposable {
             val credentialPatterns = listOf(
                 "enter credentials",
                 "authentication required",
+                "authorization required",
                 "login required",
                 "credentials for",
+                "credentials",
                 "sign in",
-                "authenticate"
+                "log in",
+                "authenticate",
+                "azure devops",
+                "personal access token"
             )
             if (credentialPatterns.any { pattern -> title.contains(pattern, ignoreCase = true) }) return true
 
@@ -100,19 +105,46 @@ class NuGetDialogInterceptor : Disposable {
     }
 
     /**
-     * Enhanced dialog detection with multiple strategies
+     * Enhanced dialog detection with multiple strategies.
+     * Always logs the window title at DEBUG level so missed dialogs can be diagnosed via the IDE log.
      */
     private fun isNuGetCredentialDialog(window: Window): Boolean {
+        val title = getWindowTitle(window)
+        logger.debug("Window opened: title='$title', class='${window.javaClass.simpleName}'")
         return when {
             checkByTitle(window) -> {
-                logger.debug("Dialog detected by title: ${getWindowTitle(window)}")
+                logger.debug("Dialog matched by title: '$title'")
                 true
             }
-
-            else -> {
-                false
+            checkByContent(window) -> {
+                logger.info("Dialog matched by content (title '$title' not in known patterns) — consider adding this title to matchesCredentialTitle()")
+                true
             }
+            else -> false
         }
+    }
+
+    /**
+     * Fallback detection: checks whether the window contains both a JPasswordField
+     * and a JLabel with a NuGet feed URL. This catches credential dialogs whose titles
+     * don't match any known pattern (e.g. custom proxy dialogs, non-English Rider).
+     * Note: Window always extends Container in Swing, so we cast directly.
+     */
+    private fun checkByContent(window: Window): Boolean {
+        val hasPasswordField = containsPasswordField(window)
+        val hasNuGetUrl = findUrlInLabels(window) != null
+        return hasPasswordField && hasNuGetUrl
+    }
+
+    /**
+     * Recursively checks whether a container contains a JPasswordField component.
+     */
+    private fun containsPasswordField(container: Container): Boolean {
+        for (component in container.components) {
+            if (component is JPasswordField) return true
+            if (component is Container && containsPasswordField(component)) return true
+        }
+        return false
     }
 
     /**

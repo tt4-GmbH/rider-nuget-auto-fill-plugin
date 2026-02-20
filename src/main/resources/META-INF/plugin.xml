@@ -36,6 +36,13 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.2</h3>
+        <ul>
+            <li>Improved: credential dialog detection now also matches "Authorization Required", "Credentials", "Log In", "Azure DevOps", and "Personal Access Token" dialog titles</li>
+            <li>Improved: added content-based fallback detection — dialogs with a password field and a NuGet feed URL are now detected even if their title is unknown</li>
+            <li>Improved: all window open events are now logged at DEBUG level, making it easy to diagnose missed dialogs via Help → Diagnostic Tools → Show Log in Finder</li>
+        </ul>
+
         <h3>Version 1.0.1</h3>
         <ul>
             <li>Fixed: credentials being lost when Rider freezes or is force-killed (e.g. due to proxy issues)</li>
