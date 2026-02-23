@@ -77,7 +77,7 @@ JUnit 5 + MockK. Tests cover pure business logic only (no IntelliJ runtime requi
 
 | Component | Version |
 |-----------|---------|
-| Plugin | 1.0.3 |
+| Plugin | 1.0.4 |
 | Kotlin | 2.1.0 |
 | IntelliJ Platform Gradle Plugin | 2.11.0 |
 | Target Rider | 2024.3 (build 241+, no upper bound) |

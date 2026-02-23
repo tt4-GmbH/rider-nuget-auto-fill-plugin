@@ -3,6 +3,7 @@ package com.tt4.rider.nuget.ui
 import com.tt4.rider.nuget.NuGetCredentialsStore
 import com.tt4.rider.nuget.NuGetDialogInterceptor
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
@@ -154,20 +155,20 @@ class CredentialsManagerDialog(project: Project?) : DialogWrapper(project, true)
             ApplicationManager.getApplication().executeOnPooledThread {
                 try {
                     credentialStore.storeCredentials(credentials)
-                    ApplicationManager.getApplication().invokeLater {
+                    ApplicationManager.getApplication().invokeLater({
                         loadCredentials()
                         Messages.showInfoMessage(
                             "Credentials stored successfully for: ${credentials.feedUrl}",
                             "Success"
                         )
-                    }
+                    }, ModalityState.any())
                 } catch (e: Exception) {
-                    ApplicationManager.getApplication().invokeLater {
+                    ApplicationManager.getApplication().invokeLater({
                         Messages.showErrorDialog(
                             "Failed to store credentials for: ${credentials.feedUrl}\n\n${e.message}\n\nPlease check your system keychain settings.",
                             "Storage Error"
                         )
-                    }
+                    }, ModalityState.any())
                 }
             }
         }
@@ -182,7 +183,7 @@ class CredentialsManagerDialog(project: Project?) : DialogWrapper(project, true)
         // PasswordSafe.get() is blocking I/O — load existing credentials on background thread
         ApplicationManager.getApplication().executeOnPooledThread {
             val existingCredentials = credentialStore.getCredentials(feedUrl)
-            ApplicationManager.getApplication().invokeLater {
+            ApplicationManager.getApplication().invokeLater({
                 val dialog = FeedCredentialsDialog(this, feedUrl, existingCredentials)
                 if (dialog.showAndGet()) {
                     val credentials = dialog.getCredentials() ?: return@invokeLater
@@ -190,24 +191,24 @@ class CredentialsManagerDialog(project: Project?) : DialogWrapper(project, true)
                     ApplicationManager.getApplication().executeOnPooledThread {
                         try {
                             credentialStore.storeCredentials(credentials)
-                            ApplicationManager.getApplication().invokeLater {
+                            ApplicationManager.getApplication().invokeLater({
                                 loadCredentials()
                                 Messages.showInfoMessage(
                                     "Credentials updated successfully for: ${credentials.feedUrl}",
                                     "Success"
                                 )
-                            }
+                            }, ModalityState.any())
                         } catch (e: Exception) {
-                            ApplicationManager.getApplication().invokeLater {
+                            ApplicationManager.getApplication().invokeLater({
                                 Messages.showErrorDialog(
                                     "Failed to store credentials for: ${credentials.feedUrl}\n\n${e.message}\n\nPlease check your system keychain settings.",
                                     "Storage Error"
                                 )
-                            }
+                            }, ModalityState.any())
                         }
                     }
                 }
-            }
+            }, ModalityState.any())
         }
     }
 
@@ -239,7 +240,7 @@ class CredentialsManagerDialog(project: Project?) : DialogWrapper(project, true)
         // PasswordSafe.get() is blocking I/O — must not be called on EDT
         ApplicationManager.getApplication().executeOnPooledThread {
             val credentials = credentialStore.getCredentials(feedUrl)
-            ApplicationManager.getApplication().invokeLater {
+            ApplicationManager.getApplication().invokeLater({
                 if (credentials != null) {
                     val success = credentialStore.testCredentials(credentials)
                     val message = if (success) {
@@ -258,7 +259,7 @@ class CredentialsManagerDialog(project: Project?) : DialogWrapper(project, true)
                         "Test Failed"
                     )
                 }
-            }
+            }, ModalityState.any())
         }
     }
 

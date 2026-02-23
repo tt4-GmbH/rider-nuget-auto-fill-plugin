@@ -2,6 +2,7 @@ package com.tt4.rider.nuget
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import java.awt.*
@@ -159,14 +160,15 @@ class NuGetDialogInterceptor : Disposable {
             try {
                 val credentials = credentialStore.getCredentials(feedInfo.url)
                 // fillCredentials() manipulates Swing components — must run on EDT
-                ApplicationManager.getApplication().invokeLater {
+                // ModalityState.any() ensures this runs even while the credential dialog is open
+                ApplicationManager.getApplication().invokeLater({
                     if (credentials != null && credentialStore.isFeedEnabled(feedInfo.url)) {
                         logger.info("Auto-filling credentials for feed: ${feedInfo.url}")
                         fillCredentials(window, credentials)
                     } else {
                         logger.debug("No credentials found or feed disabled for: ${feedInfo.url}")
                     }
-                }
+                }, ModalityState.any())
             } catch (e: Exception) {
                 logger.error("Error retrieving credentials for NuGet dialog", e)
             }

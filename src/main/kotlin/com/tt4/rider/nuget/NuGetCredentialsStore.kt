@@ -36,6 +36,17 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
         private const val CREDENTIAL_SERVICE_NAME = "NuGetAutoFill"
         private val logger = thisLogger()
 
+        /** Seam for unit tests — production code always resolves to the live instance. */
+        internal var passwordSafeProvider: () -> PasswordSafe = { PasswordSafe.instance }
+
+        private const val MAX_STORE_ATTEMPTS = 3
+
+        /**
+         * Delay (ms) between keychain retries and before read-back verification.
+         * Internal so unit tests can set it to 0 for fast execution.
+         */
+        internal var storeRetryDelayMs: Long = 150L
+
         private val backupFile: File
             get() {
                 val configPath = PathManager.getConfigPath()
@@ -133,24 +144,50 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
             enabled = true
         )
 
-        // Store sensitive data in secure storage
-        val credentialAttributes = CredentialAttributes(
-            serviceName = CREDENTIAL_SERVICE_NAME,
-            userName = normalizedUrl
-        )
-
-        val secureCredentials = Credentials(credentials.username, credentials.password)
-        PasswordSafe.instance.set(credentialAttributes, secureCredentials)
-
-        // Verify the write succeeded by reading back
-        val verification = PasswordSafe.instance.get(credentialAttributes)
-        if (verification == null) {
-            logger.error("PasswordSafe write verification failed for: $normalizedUrl — password was not stored in keychain")
-            throw IllegalStateException("Failed to store password in system keychain for: $normalizedUrl")
+        try {
+            val credentialAttributes = CredentialAttributes(
+                serviceName = CREDENTIAL_SERVICE_NAME,
+                userName = normalizedUrl
+            )
+            val secureCredentials = Credentials(credentials.username, credentials.password)
+            storeToKeychain(credentialAttributes, secureCredentials, normalizedUrl)
+            saveBackup()
+        } catch (e: Exception) {
+            // Roll back XML state — feed must not appear in the table without a stored password
+            state.feedConfigurations.remove(normalizedUrl)
+            logger.error("Failed to store credentials in keychain for: $normalizedUrl", e)
+            throw e
         }
+    }
 
-        logger.info("Successfully stored credentials for: $normalizedUrl")
-        saveBackup()
+    /**
+     * Writes [credentials] to PasswordSafe under [attributes], retrying up to [MAX_STORE_ATTEMPTS]
+     * times. After each successful write, performs a read-back to confirm the credential is
+     * actually retrievable — some backends (macOS Keychain, KeePass) flush asynchronously,
+     * so an immediate read can return null even when the write appeared to succeed.
+     */
+    private fun storeToKeychain(attributes: CredentialAttributes, credentials: Credentials, url: String) {
+        var lastException: Exception? = null
+        for (attempt in 1..MAX_STORE_ATTEMPTS) {
+            try {
+                passwordSafeProvider().set(attributes, credentials)
+            } catch (e: Exception) {
+                lastException = e
+                logger.warn("PasswordSafe write threw on attempt $attempt/$MAX_STORE_ATTEMPTS for $url", e)
+                if (attempt < MAX_STORE_ATTEMPTS) Thread.sleep(storeRetryDelayMs * attempt)
+                continue
+            }
+            // Allow asynchronous keychain backends time to settle before reading back
+            Thread.sleep(storeRetryDelayMs)
+            if (passwordSafeProvider().get(attributes) != null) {
+                logger.info("Stored credentials verified in keychain for: $url (attempt $attempt)")
+                return
+            }
+            logger.warn("Keychain write verification returned null on attempt $attempt/$MAX_STORE_ATTEMPTS for $url")
+            lastException = IllegalStateException("Keychain write appeared to succeed but credential is not readable: $url")
+            if (attempt < MAX_STORE_ATTEMPTS) Thread.sleep(storeRetryDelayMs * attempt)
+        }
+        throw lastException ?: IllegalStateException("Failed to store credentials after $MAX_STORE_ATTEMPTS attempts: $url")
     }
 
     /**
@@ -181,7 +218,7 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
             userName = normalizedUrl
         )
 
-        val secureCredentials = PasswordSafe.instance.get(credentialAttributes)
+        val secureCredentials = passwordSafeProvider().get(credentialAttributes)
         if (secureCredentials == null) {
             logger.warn("No secure credentials found for: $normalizedUrl")
             return null
@@ -211,7 +248,7 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
             serviceName = CREDENTIAL_SERVICE_NAME,
             userName = normalizedUrl
         )
-        PasswordSafe.instance.set(credentialAttributes, null)
+        passwordSafeProvider().set(credentialAttributes, null)
         saveBackup()
     }
 

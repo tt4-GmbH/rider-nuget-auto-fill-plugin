@@ -1,5 +1,9 @@
 package com.tt4.rider.nuget
 
+import com.intellij.ide.passwordSafe.PasswordSafe
+import io.mockk.every
+import io.mockk.mockk
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -10,6 +14,12 @@ class NuGetCredentialsStoreTest {
     // Instantiate directly — constructor takes no args and normalizeUrl/computeNewState
     // don't touch any IDE services.
     private val store = NuGetCredentialsStore()
+
+    @AfterEach
+    fun resetSeams() {
+        NuGetCredentialsStore.passwordSafeProvider = { PasswordSafe.instance }
+        NuGetCredentialsStore.storeRetryDelayMs = 150L
+    }
 
     // -------------------------------------------------------------------------
     // normalizeUrl
@@ -122,5 +132,84 @@ class NuGetCredentialsStoreTest {
             )
         )
         assertEquals(incoming, NuGetCredentialsStore.computeNewState(incoming, current))
+    }
+
+    // -------------------------------------------------------------------------
+    // storeCredentials atomicity + retry
+    // -------------------------------------------------------------------------
+
+    private fun mockPasswordSafe(
+        setAnswer: () -> Unit = {},
+        getAnswer: () -> com.intellij.credentialStore.Credentials? = { mockk() }
+    ): PasswordSafe {
+        NuGetCredentialsStore.storeRetryDelayMs = 0L
+        return mockk<PasswordSafe>().also { ps ->
+            every { ps.set(any(), any()) } answers { setAnswer() }
+            every { ps.get(any()) } answers { getAnswer() }
+            NuGetCredentialsStore.passwordSafeProvider = { ps }
+        }
+    }
+
+    @Test
+    fun `storeCredentials adds feed to state when PasswordSafe succeeds on first attempt`() {
+        mockPasswordSafe()
+
+        store.storeCredentials(NuGetCredentials("user", "secret", "https://api.nuget.org/v3/index.json"))
+
+        assertEquals(1, store.getAllFeeds().size)
+        assertEquals("https://api.nuget.org/v3/index.json", store.getAllFeeds().first().feedUrl)
+        assertEquals("user", store.getAllFeeds().first().username)
+    }
+
+    @Test
+    fun `storeCredentials retries and succeeds when set() throws on first attempt`() {
+        var attempt = 0
+        mockPasswordSafe(setAnswer = {
+            attempt++
+            if (attempt == 1) throw RuntimeException("transient keychain error")
+        })
+
+        store.storeCredentials(NuGetCredentials("user", "secret", "https://api.nuget.org/v3/index.json"))
+
+        assertEquals(1, store.getAllFeeds().size)
+    }
+
+    @Test
+    fun `storeCredentials retries and succeeds when get() verification returns null on first attempt`() {
+        var getAttempt = 0
+        mockPasswordSafe(getAnswer = {
+            getAttempt++
+            if (getAttempt == 1) null else mockk()
+        })
+
+        store.storeCredentials(NuGetCredentials("user", "secret", "https://api.nuget.org/v3/index.json"))
+
+        assertEquals(1, store.getAllFeeds().size)
+    }
+
+    @Test
+    fun `storeCredentials rolls back feedConfigurations when set() always throws`() {
+        mockPasswordSafe(setAnswer = { throw RuntimeException("keychain unavailable") })
+
+        // IntelliJ's TestLoggerFactory promotes logger.error() to AssertionError during tests,
+        // so we accept any Throwable. The important assertion is the state check below.
+        try {
+            store.storeCredentials(NuGetCredentials("user", "secret", "https://api.nuget.org/v3/index.json"))
+            fail("Expected storeCredentials to throw")
+        } catch (_: Throwable) { }
+
+        assertTrue(store.getAllFeeds().isEmpty(), "Feed must not remain in state after a keychain failure")
+    }
+
+    @Test
+    fun `storeCredentials rolls back feedConfigurations when get() verification always returns null`() {
+        mockPasswordSafe(getAnswer = { null })
+
+        try {
+            store.storeCredentials(NuGetCredentials("user", "secret", "https://api.nuget.org/v3/index.json"))
+            fail("Expected storeCredentials to throw")
+        } catch (_: Throwable) { }
+
+        assertTrue(store.getAllFeeds().isEmpty(), "Feed must not remain in state after verification always failing")
     }
 }

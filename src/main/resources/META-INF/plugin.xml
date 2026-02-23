@@ -36,6 +36,13 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.4</h3>
+        <ul>
+            <li>Fixed: all UI callbacks (dialogs, auto-fill) now run with the correct modality state — they were silently deferred until the plugin dialog was closed</li>
+            <li>Fixed: credential storage is now atomic — if the keychain write fails, the feed is not left in a broken half-stored state</li>
+            <li>Fixed: second (and subsequent) credentials could silently fail to persist on some keychain backends — writes are now retried with read-back verification</li>
+        </ul>
+
         <h3>Version 1.0.3</h3>
         <ul>
             <li>Fixed: credentials occasionally not stored correctly due to PasswordSafe being called on the UI thread — all keychain operations are now performed on a background thread</li>
