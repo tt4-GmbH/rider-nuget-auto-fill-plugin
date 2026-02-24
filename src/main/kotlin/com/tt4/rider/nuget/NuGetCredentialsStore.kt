@@ -146,7 +146,7 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
 
         try {
             val credentialAttributes = CredentialAttributes(
-                serviceName = CREDENTIAL_SERVICE_NAME,
+                serviceName = "$CREDENTIAL_SERVICE_NAME:$normalizedUrl",
                 userName = normalizedUrl
             )
             val secureCredentials = Credentials(credentials.username, credentials.password)
@@ -214,11 +214,12 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
 
         // Retrieve from secure storage
         val credentialAttributes = CredentialAttributes(
-            serviceName = CREDENTIAL_SERVICE_NAME,
+            serviceName = "$CREDENTIAL_SERVICE_NAME:$normalizedUrl",
             userName = normalizedUrl
         )
 
         val secureCredentials = passwordSafeProvider().get(credentialAttributes)
+            ?: migrateFromLegacyKey(normalizedUrl, credentialAttributes)
         if (secureCredentials == null) {
             logger.warn("No secure credentials found for: $normalizedUrl")
             return null
@@ -233,6 +234,28 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
     }
 
     /**
+     * Checks for a credential stored under the legacy key format used in versions < 1.0.5
+     * (serviceName = "NuGetAutoFill", userName = feedUrl). If found, silently migrates it
+     * to the current key format and deletes the old entry.
+     */
+    private fun migrateFromLegacyKey(normalizedUrl: String, newAttributes: CredentialAttributes): Credentials? {
+        val legacyAttributes = CredentialAttributes(
+            serviceName = CREDENTIAL_SERVICE_NAME,
+            userName = normalizedUrl
+        )
+        val legacyCreds = passwordSafeProvider().get(legacyAttributes) ?: return null
+        logger.info("Migrating legacy keychain entry to new format for: $normalizedUrl")
+        try {
+            passwordSafeProvider().set(newAttributes, legacyCreds)
+            passwordSafeProvider().set(legacyAttributes, null)
+            logger.info("Keychain migration successful for: $normalizedUrl")
+        } catch (e: Exception) {
+            logger.warn("Failed to migrate keychain entry for: $normalizedUrl — legacy credential returned as-is", e)
+        }
+        return legacyCreds
+    }
+
+    /**
      * Remove credentials for a NuGet feed
      */
     fun removeCredentials(feedUrl: String) {
@@ -243,12 +266,24 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
         // Remove from configuration
         state.feedConfigurations.remove(normalizedUrl)
 
-        // Remove from secure storage
+        // Remove current-format entry (>= 1.0.5)
         val credentialAttributes = CredentialAttributes(
-            serviceName = CREDENTIAL_SERVICE_NAME,
+            serviceName = "$CREDENTIAL_SERVICE_NAME:$normalizedUrl",
             userName = normalizedUrl
         )
         passwordSafeProvider().set(credentialAttributes, null)
+
+        // Also clean up any legacy-format entry (< 1.0.5) that may still be in the keychain
+        val legacyAttributes = CredentialAttributes(
+            serviceName = CREDENTIAL_SERVICE_NAME,
+            userName = normalizedUrl
+        )
+        try {
+            passwordSafeProvider().set(legacyAttributes, null)
+        } catch (e: Exception) {
+            logger.warn("Failed to clean up legacy keychain entry for: $normalizedUrl", e)
+        }
+
         saveBackup()
     }
 

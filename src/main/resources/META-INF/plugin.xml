@@ -36,6 +36,12 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.5</h3>
+        <ul>
+            <li>Fixed: credentials for different feeds with the same username overwrote each other in the keychain — each feed now gets its own isolated keychain entry</li>
+            <li>Existing credentials stored by earlier versions are automatically migrated to the new keychain format on first use — no manual re-entry required</li>
+        </ul>
+
         <h3>Version 1.0.4</h3>
         <ul>
             <li>Fixed: all UI callbacks (dialogs, auto-fill) now run with the correct modality state — they were silently deferred until the plugin dialog was closed</li>

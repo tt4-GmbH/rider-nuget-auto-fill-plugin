@@ -1,7 +1,9 @@
 package com.tt4.rider.nuget
 
 import com.intellij.ide.passwordSafe.PasswordSafe
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
@@ -199,6 +201,51 @@ class NuGetCredentialsStoreTest {
         } catch (_: Throwable) { }
 
         assertTrue(store.getAllFeeds().isEmpty(), "Feed must not remain in state after a keychain failure")
+    }
+
+    @Test
+    fun `two feeds with the same username are both stored in XML state independently`() {
+        mockPasswordSafe()
+
+        store.storeCredentials(NuGetCredentials("alice", "pass1", "https://feed1.example.com/v3/index.json"))
+        store.storeCredentials(NuGetCredentials("alice", "pass2", "https://feed2.example.com/v3/index.json"))
+
+        assertEquals(2, store.getAllFeeds().size)
+        val urls = store.getAllFeeds().map { it.feedUrl }.toSet()
+        assertTrue("https://feed1.example.com/v3/index.json" in urls)
+        assertTrue("https://feed2.example.com/v3/index.json" in urls)
+    }
+
+    @Test
+    fun `getCredentials migrates from legacy key format transparently on first access`() {
+        NuGetCredentialsStore.storeRetryDelayMs = 0L
+        val mockPs = mockk<PasswordSafe>()
+        val legacyCreds = mockk<com.intellij.credentialStore.Credentials>()
+        every { legacyCreds.getPasswordAsString() } returns "migrated-password"
+
+        // New-format key (>= 1.0.5) has no entry
+        every { mockPs.get(match { it.serviceName.startsWith("NuGetAutoFill:") }) } returns null
+        // Legacy key (< 1.0.5) has the credential
+        every { mockPs.get(match { it.serviceName == "NuGetAutoFill" }) } returns legacyCreds
+        // Migration writes (store new, delete old)
+        every { mockPs.set(any(), any()) } just Runs
+
+        NuGetCredentialsStore.passwordSafeProvider = { mockPs }
+
+        // Seed XML state as it would exist after a pre-1.0.5 install
+        store.loadState(NuGetCredentialsStore.State(
+            feedConfigurations = mutableMapOf(
+                "https://api.nuget.org/v3/index.json" to NuGetCredentialsStore.FeedConfiguration(
+                    feedUrl = "https://api.nuget.org/v3/index.json",
+                    username = "user",
+                    enabled = true
+                )
+            )
+        ))
+
+        val result = store.getCredentials("https://api.nuget.org/v3/index.json")
+
+        assertNotNull(result, "Legacy credential should be returned after migration")
     }
 
     @Test
