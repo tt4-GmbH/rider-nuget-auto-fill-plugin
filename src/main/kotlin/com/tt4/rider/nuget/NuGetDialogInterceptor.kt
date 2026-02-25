@@ -8,6 +8,8 @@ import com.intellij.openapi.diagnostic.thisLogger
 import java.awt.*
 import java.awt.event.AWTEventListener
 import java.awt.event.WindowEvent
+import java.util.Collections
+import java.util.WeakHashMap
 import javax.swing.*
 
 /**
@@ -57,6 +59,14 @@ class NuGetDialogInterceptor : Disposable {
     private var isInitialized = false
 
     /**
+     * Tracks windows that have already been processed (filled or decided no credentials apply).
+     * WeakHashMap ensures windows are garbage-collected normally when closed.
+     * Reset on WINDOW_OPENED/WINDOW_CLOSED so reused windows are treated as fresh.
+     */
+    private val processedWindows: MutableSet<Window> =
+        Collections.newSetFromMap(WeakHashMap())
+
+    /**
      * Initialize the dialog interception
      */
     fun initialize() {
@@ -76,31 +86,69 @@ class NuGetDialogInterceptor : Disposable {
             logger.info("NuGet dialog interceptor initialized successfully")
             logger.info(credentialStore.getCredentialSummary())
 
+            // Catch any credential dialog that appeared before the listener was registered
+            // (e.g. NuGet auto-restore fires during Rider startup before applicationActivated)
+            triggerManualCheck()
+
         } catch (e: Exception) {
             logger.error("Failed to initialize NuGet dialog interceptor", e)
         }
     }
 
     /**
-     * AWT Event listener for dialog detection
+     * AWT Event listener for dialog detection.
+     *
+     * Handles three event types:
+     * - WINDOW_OPENED: primary trigger; clears the dedup set for this window so a
+     *   reused instance is always treated as fresh.
+     * - WINDOW_ACTIVATED: catches windows that were already created and are made visible
+     *   again via setVisible(true) — WINDOW_OPENED does NOT fire for those. Guarded by
+     *   processedWindows to avoid re-processing on every focus event.
+     * - WINDOW_CLOSED / WINDOW_CLOSING: evict from processedWindows so a reused window
+     *   (setVisible → close → setVisible again) is detected on the next show.
      */
     private inner class NuGetDialogEventListener : AWTEventListener {
 
         override fun eventDispatched(event: AWTEvent) {
-            if (event is WindowEvent && event.id == WindowEvent.WINDOW_OPENED) {
-                val window = event.window
-
-                // Dialog detection (title/content checks) is pure Swing reads — safe on EDT.
-                // processNuGetDialog() offloads PasswordSafe I/O to a background thread internally.
-                try {
-                    if (isNuGetCredentialDialog(window)) {
-                        logger.info("Detected NuGet credential dialog: ${window.javaClass.simpleName}")
-                        processNuGetDialog(window)
+            if (event !is WindowEvent) return
+            val window = event.window
+            // Dialog detection (title/content checks) is pure Swing reads — safe on EDT.
+            // processNuGetDialog() offloads PasswordSafe I/O to a background thread internally.
+            try {
+                when (event.id) {
+                    WindowEvent.WINDOW_OPENED -> {
+                        // Fresh window: clear any stale dedup entry and process immediately
+                        processedWindows.remove(window)
+                        checkAndProcess(window)
                     }
-                } catch (e: Exception) {
-                    logger.error("Error processing potential NuGet dialog", e)
+                    WindowEvent.WINDOW_ACTIVATED -> {
+                        // Secondary trigger for reused windows; skip if already handled
+                        if (window !in processedWindows) checkAndProcess(window)
+                    }
+                    WindowEvent.WINDOW_CLOSED,
+                    WindowEvent.WINDOW_CLOSING -> {
+                        // Allow the window to be detected again if it is reused later
+                        processedWindows.remove(window)
+                    }
                 }
+            } catch (e: Exception) {
+                logger.error("Error processing potential NuGet dialog", e)
             }
+        }
+    }
+
+    /**
+     * Check a window and process it if it looks like a NuGet credential dialog.
+     * Marks the window as processed regardless of outcome to prevent repeated attempts.
+     */
+    private fun checkAndProcess(window: Window) {
+        if (isNuGetCredentialDialog(window)) {
+            logger.info("Detected NuGet credential dialog: ${window.javaClass.simpleName}")
+            processedWindows.add(window)
+            processNuGetDialog(window)
+        } else {
+            // Mark non-matching windows too, so WINDOW_ACTIVATED doesn't keep re-evaluating them
+            processedWindows.add(window)
         }
     }
 
@@ -203,34 +251,16 @@ class NuGetDialogInterceptor : Disposable {
     }
 
     private fun findUrlInLabels(container: Container): String? {
-        val urlPattern = URL_PATTERN
-
-        // Check immediate children
         for (component in container.components) {
             if (component is JLabel) {
-                component.text?.let { text ->
-                    urlPattern.find(text)?.let { match ->
-                        return match.value
-                    }
-                }
+                val match = URL_PATTERN.find(component.text ?: "")
+                if (match != null) return match.value
             }
-        }
-
-        // Check one level deeper
-        for (component in container.components) {
             if (component is Container) {
-                for (child in component.components) {
-                    if (child is JLabel) {
-                        child.text?.let { text ->
-                            urlPattern.find(text)?.let { match ->
-                                return match.value
-                            }
-                        }
-                    }
-                }
+                val found = findUrlInLabels(component)
+                if (found != null) return found
             }
         }
-
         return null
     }
 

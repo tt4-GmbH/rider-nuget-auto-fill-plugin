@@ -36,6 +36,13 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.6</h3>
+        <ul>
+            <li>Fixed: credential dialogs that appear during Rider startup (before the plugin is fully activated) are now detected and filled</li>
+            <li>Fixed: dialogs shown a second time via the same window instance (reused by the platform) were not detected — now caught via an additional window activation listener with deduplication</li>
+            <li>Fixed: feed URL could not be found in dialogs where the label is nested more than two levels deep in the component tree — URL search is now fully recursive</li>
+        </ul>
+
         <h3>Version 1.0.5</h3>
         <ul>
             <li>Fixed: credentials for different feeds with the same username overwrote each other in the keychain — each feed now gets its own isolated keychain entry</li>
