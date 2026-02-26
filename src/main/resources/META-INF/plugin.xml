@@ -36,6 +36,11 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.8</h3>
+        <ul>
+            <li>Fixed: first credential dialog on startup was still missed — the AWT listener is now registered at application start (before any project loads) instead of during project open</li>
+        </ul>
+
         <h3>Version 1.0.7</h3>
         <ul>
             <li>Fixed: first credential dialog on startup was missed because the plugin initialised too late (after the user first focused the window) — the AWT listener is now registered during project open, before NuGet auto-restore can trigger a dialog</li>
@@ -109,6 +114,13 @@
     </extensions>
 
     <applicationListeners>
+        <!--
+            Primary: registers the AWT listener at app start — before any project loads,
+            before the .NET backend starts, before NuGet restore can trigger a dialog.
+        -->
+        <listener class="com.tt4.rider.nuget.NuGetAppLifecycleListener"
+                  topic="com.intellij.ide.AppLifecycleListener"/>
+        <!-- Fallback: re-confirms initialization when the IDE window gains focus -->
         <listener class="com.tt4.rider.nuget.NuGetStartupListener"
                   topic="com.intellij.openapi.application.ApplicationActivationListener"/>
     </applicationListeners>

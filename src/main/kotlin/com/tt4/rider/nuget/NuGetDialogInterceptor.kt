@@ -406,8 +406,9 @@ class NuGetDialogInterceptor : Disposable {
         logger.info("Manual dialog check triggered")
         val windows = Window.getWindows()
         for (window in windows) {
-            if (window.isVisible && isNuGetCredentialDialog(window)) {
+            if (window.isVisible && window !in processedWindows && isNuGetCredentialDialog(window)) {
                 logger.info("Found NuGet dialog in manual check: ${window.javaClass.simpleName}")
+                processedWindows.add(window)
                 processNuGetDialog(window)
             }
         }
