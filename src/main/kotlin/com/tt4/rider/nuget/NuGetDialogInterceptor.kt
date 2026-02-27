@@ -28,6 +28,14 @@ class NuGetDialogInterceptor : Disposable {
         /** Regex matching NuGet feed index.json URLs — exposed for testing */
         internal val URL_PATTERN = Regex("""https?://[^\s<>"]*?/index\.json(?=[\s<>"]|$)""")
 
+        /**
+         * Broader URL pattern used as a fallback in extractFeedInformation() when
+         * the dialog shows a base feed URL without the /index.json suffix
+         * (e.g. package-install dialogs in Rider's NuGet Package Manager).
+         * Not used for content-based dialog detection — only for URL extraction.
+         */
+        internal val BASE_URL_PATTERN = Regex("""https?://[^\s<>"]+""")
+
         /** Pure title-matching logic — exposed for testing */
         internal fun matchesCredentialTitle(title: String): Boolean {
             val credentialPatterns = listOf(
@@ -70,6 +78,7 @@ class NuGetDialogInterceptor : Disposable {
      * Initialize the dialog interception
      */
     fun initialize() {
+        logger.info("[NuGetAutoFill] initialize() called — isInitialized=$isInitialized")
         if (isInitialized) {
             logger.debug("Dialog interceptor already initialized")
             return
@@ -158,7 +167,7 @@ class NuGetDialogInterceptor : Disposable {
      */
     private fun isNuGetCredentialDialog(window: Window): Boolean {
         val title = getWindowTitle(window)
-        logger.debug("Window opened: title='$title', class='${window.javaClass.simpleName}'")
+        logger.info("[NuGetAutoFill] Window event: title='$title', class='${window.javaClass.simpleName}'")
         return when {
             checkByTitle(window) -> {
                 logger.debug("Dialog matched by title: '$title'")
@@ -206,12 +215,16 @@ class NuGetDialogInterceptor : Disposable {
         // PasswordSafe.get() is blocking I/O — must not be called on EDT
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                val credentials = credentialStore.getCredentials(feedInfo.url)
+                // Resolve the dialog URL to a stored feed URL.
+                // Handles dialogs that show the base URL without /index.json
+                // (e.g. "https://myserver.com/feed/" → "https://myserver.com/feed/index.json").
+                val resolvedUrl = credentialStore.resolveToStoredUrl(feedInfo.url)
+                val credentials = credentialStore.getCredentials(resolvedUrl)
                 // fillCredentials() manipulates Swing components — must run on EDT
                 // ModalityState.any() ensures this runs even while the credential dialog is open
                 ApplicationManager.getApplication().invokeLater({
-                    if (credentials != null && credentialStore.isFeedEnabled(feedInfo.url)) {
-                        logger.info("Auto-filling credentials for feed: ${feedInfo.url}")
+                    if (credentials != null && credentialStore.isFeedEnabled(resolvedUrl)) {
+                        logger.info("Auto-filling credentials for feed: $resolvedUrl")
                         fillCredentials(window, credentials)
                     } else {
                         logger.debug("No credentials found or feed disabled for: ${feedInfo.url}")
@@ -240,24 +253,29 @@ class NuGetDialogInterceptor : Disposable {
     )
 
     /**
-     * Extract feed information from dialog
+     * Extract feed information from dialog.
+     * Tries the strict URL_PATTERN (requires /index.json) first.
+     * Falls back to BASE_URL_PATTERN to handle dialogs that show only the
+     * base feed URL without the /index.json suffix (e.g. package-install dialogs).
      */
     private fun extractFeedInformation(window: Window): FeedInfo {
-
-        // Search for URL in labels (most common location)
-        val url: String? = findUrlInLabels(window)
-
+        val url = findUrlInLabels(window, URL_PATTERN)
+            ?: findUrlInLabels(window, BASE_URL_PATTERN)
         return FeedInfo(url, null)
     }
 
-    private fun findUrlInLabels(container: Container): String? {
+    /**
+     * Recursively searches JLabel components for a URL matching [pattern].
+     * Defaults to the strict URL_PATTERN (index.json URLs) used for content-based detection.
+     */
+    private fun findUrlInLabels(container: Container, pattern: Regex = URL_PATTERN): String? {
         for (component in container.components) {
             if (component is JLabel) {
-                val match = URL_PATTERN.find(component.text ?: "")
+                val match = pattern.find(component.text ?: "")
                 if (match != null) return match.value
             }
             if (component is Container) {
-                val found = findUrlInLabels(component)
+                val found = findUrlInLabels(component, pattern)
                 if (found != null) return found
             }
         }

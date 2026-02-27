@@ -137,6 +137,84 @@ class NuGetCredentialsStoreTest {
     }
 
     // -------------------------------------------------------------------------
+    // resolveToStoredUrl
+    // -------------------------------------------------------------------------
+
+    private fun storeWithIndexJson(vararg urls: String) {
+        store.loadState(NuGetCredentialsStore.State(
+            feedConfigurations = urls.associate { url ->
+                url to NuGetCredentialsStore.FeedConfiguration(feedUrl = url, username = "user", enabled = true)
+            }.toMutableMap()
+        ))
+    }
+
+    @Test
+    fun `resolveToStoredUrl returns exact match when URL already includes index json`() {
+        storeWithIndexJson("https://myserver.com/feed/index.json")
+        assertEquals(
+            "https://myserver.com/feed/index.json",
+            store.resolveToStoredUrl("https://myserver.com/feed/index.json")
+        )
+    }
+
+    @Test
+    fun `resolveToStoredUrl resolves base URL with trailing slash to stored index json URL`() {
+        storeWithIndexJson("https://myserver.com/feed/index.json")
+        assertEquals(
+            "https://myserver.com/feed/index.json",
+            store.resolveToStoredUrl("https://myserver.com/feed/")
+        )
+    }
+
+    @Test
+    fun `resolveToStoredUrl resolves base URL without trailing slash to stored index json URL`() {
+        storeWithIndexJson("https://myserver.com/feed/index.json")
+        assertEquals(
+            "https://myserver.com/feed/index.json",
+            store.resolveToStoredUrl("https://myserver.com/feed")
+        )
+    }
+
+    @Test
+    fun `resolveToStoredUrl does not match a different feed that shares a URL prefix`() {
+        storeWithIndexJson("https://myserver.com/nuget-local-snapshots/index.json")
+        // "nuget-local-snapshots/index.json" must NOT match the lookup for "nuget-local"
+        assertNull(store.resolveToStoredUrl("https://myserver.com/nuget-local"))
+    }
+
+    @Test
+    fun `resolveToStoredUrl resolves Artifactory-style base URL to stored index json URL`() {
+        storeWithIndexJson("https://my-company.jfrog.io/artifactory/api/nuget/v3/nuget-local/index.json")
+        assertEquals(
+            "https://my-company.jfrog.io/artifactory/api/nuget/v3/nuget-local/index.json",
+            store.resolveToStoredUrl("https://my-company.jfrog.io/artifactory/api/nuget/v3/nuget-local/")
+        )
+    }
+
+    @Test
+    fun `resolveToStoredUrl returns null when no stored feed matches`() {
+        storeWithIndexJson("https://myserver.com/feed/index.json")
+        assertNull(store.resolveToStoredUrl("https://other.server.com/feed"))
+    }
+
+    @Test
+    fun `resolveToStoredUrl returns null for null input`() {
+        storeWithIndexJson("https://myserver.com/feed/index.json")
+        assertNull(store.resolveToStoredUrl(null))
+    }
+
+    @Test
+    fun `resolveToStoredUrl returns null for blank input`() {
+        storeWithIndexJson("https://myserver.com/feed/index.json")
+        assertNull(store.resolveToStoredUrl("   "))
+    }
+
+    @Test
+    fun `resolveToStoredUrl returns null when store is empty`() {
+        assertNull(store.resolveToStoredUrl("https://myserver.com/feed/index.json"))
+    }
+
+    // -------------------------------------------------------------------------
     // storeCredentials atomicity + retry
     // -------------------------------------------------------------------------
 

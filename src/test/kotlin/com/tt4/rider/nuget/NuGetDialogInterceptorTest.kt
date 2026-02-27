@@ -108,6 +108,40 @@ class NuGetDialogInterceptorTest {
         assertNull(NuGetDialogInterceptor.URL_PATTERN.find(text))
     }
 
+    // -------------------------------------------------------------------------
+    // BASE_URL_PATTERN — fallback extraction for dialogs without /index.json
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `BASE_URL_PATTERN matches Artifactory feed URL without index json`() {
+        val text = "Please authenticate for https://my-company.jfrog.io/artifactory/api/nuget/v3/nuget-local/"
+        val match = NuGetDialogInterceptor.BASE_URL_PATTERN.find(text)
+        assertNotNull(match)
+        assertEquals("https://my-company.jfrog.io/artifactory/api/nuget/v3/nuget-local/", match!!.value)
+    }
+
+    @Test
+    fun `BASE_URL_PATTERN also matches standard index json URL`() {
+        val text = "https://api.nuget.org/v3/index.json"
+        val match = NuGetDialogInterceptor.BASE_URL_PATTERN.find(text)
+        assertNotNull(match)
+        assertEquals("https://api.nuget.org/v3/index.json", match!!.value)
+    }
+
+    @Test
+    fun `BASE_URL_PATTERN matches Azure DevOps base URL without index json`() {
+        val text = "Feed: https://pkgs.dev.azure.com/myorg/_packaging/myfeed/nuget/v3 some other text"
+        val match = NuGetDialogInterceptor.BASE_URL_PATTERN.find(text)
+        assertNotNull(match)
+        assertEquals("https://pkgs.dev.azure.com/myorg/_packaging/myfeed/nuget/v3", match!!.value)
+    }
+
+    @Test
+    fun `BASE_URL_PATTERN returns null when no URL present`() {
+        val text = "Please enter your credentials"
+        assertNull(NuGetDialogInterceptor.BASE_URL_PATTERN.find(text))
+    }
+
     @Test
     fun `URL_PATTERN does not match bare domain without path`() {
         val text = "https://api.nuget.org"

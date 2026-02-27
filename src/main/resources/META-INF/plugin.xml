@@ -36,6 +36,12 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.9</h3>
+        <ul>
+            <li>Fixed: credentials were not auto-filled when installing a new NuGet package — Rider's package-install dialog shows the feed's base URL without /index.json, which no longer prevents credential lookup</li>
+            <li>Improved: key log lines promoted from DEBUG to INFO — open Help → Diagnostic Tools → Show Log and search for [NuGetAutoFill] to see exactly when the listener is registered and which dialogs are detected</li>
+        </ul>
+
         <h3>Version 1.0.8</h3>
         <ul>
             <li>Fixed: first credential dialog on startup was still missed — the AWT listener is now registered at application start (before any project loads) instead of during project open</li>

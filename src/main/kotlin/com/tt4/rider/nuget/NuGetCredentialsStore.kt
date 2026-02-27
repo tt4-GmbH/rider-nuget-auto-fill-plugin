@@ -313,6 +313,33 @@ class NuGetCredentialsStore : PersistentStateComponent<NuGetCredentialsStore.Sta
     }
 
     /**
+     * Resolves a URL extracted from a credential dialog to a stored feed URL.
+     *
+     * NuGet credential dialogs sometimes show the feed's base URL without the
+     * /index.json suffix (e.g. "https://myserver.com/feed/" instead of
+     * "https://myserver.com/feed/index.json"). This method first tries an exact
+     * (normalized) match, then falls back to prefix matching: a stored URL
+     * matches if it starts with "{normalizedDialogUrl}/" — so
+     * "…/feed/index.json" matches "…/feed" but "…/feed-snapshots/index.json"
+     * does not.
+     *
+     * Returns null if no matching stored feed exists.
+     */
+    fun resolveToStoredUrl(feedUrl: String?): String? {
+        if (feedUrl.isNullOrBlank()) return null
+        val normalized = normalizeUrl(feedUrl)
+
+        // Exact match (normal case: URL already includes /index.json)
+        if (state.feedConfigurations.containsKey(normalized)) return normalized
+
+        // Prefix match: stored URL must be the dialog URL with additional path segments
+        // e.g. "…/feed/index.json".startsWith("…/feed/") → true
+        //      "…/feed-snapshots/index.json".startsWith("…/feed/") → false
+        val prefix = "$normalized/"
+        return state.feedConfigurations.keys.firstOrNull { it.startsWith(prefix) }
+    }
+
+    /**
      * Check if autofill is enabled for a feed
      */
     fun isFeedEnabled(feedUrl: String?): Boolean {
