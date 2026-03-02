@@ -226,12 +226,19 @@ class NuGetDialogInterceptor : Disposable {
                     if (credentials != null && credentialStore.isFeedEnabled(resolvedUrl)) {
                         logger.info("Auto-filling credentials for feed: $resolvedUrl")
                         fillCredentials(window, credentials)
+                        // Window stays in processedWindows — filled successfully, no retry needed
                     } else {
                         logger.debug("No credentials found or feed disabled for: ${feedInfo.url}")
+                        // Remove from processedWindows so WINDOW_ACTIVATED can retry.
+                        // Rider reuses the same dialog window instance across restore attempts
+                        // (setVisible(false/true) rather than dispose+new), so WINDOW_OPENED
+                        // won't fire again. Without this, a failed fill permanently blocks retry.
+                        processedWindows.remove(window)
                     }
                 }, ModalityState.any())
             } catch (e: Exception) {
                 logger.error("Error retrieving credentials for NuGet dialog", e)
+                processedWindows.remove(window) // allow retry after transient error
             }
         }
     }
