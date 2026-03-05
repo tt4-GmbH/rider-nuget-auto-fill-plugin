@@ -223,6 +223,13 @@ class NuGetDialogInterceptor : Disposable {
                 // fillCredentials() manipulates Swing components — must run on EDT
                 // ModalityState.any() ensures this runs even while the credential dialog is open
                 ApplicationManager.getApplication().invokeLater({
+                    if (!window.isVisible) {
+                        // Dialog was dismissed while credentials were being retrieved.
+                        // Remove from processedWindows so WINDOW_ACTIVATED can retry if the
+                        // same window instance is reused (Rider's setVisible pattern).
+                        processedWindows.remove(window)
+                        return@invokeLater
+                    }
                     if (credentials != null && credentialStore.isFeedEnabled(resolvedUrl)) {
                         logger.info("Auto-filling credentials for feed: $resolvedUrl")
                         fillCredentials(window, credentials)
@@ -238,7 +245,10 @@ class NuGetDialogInterceptor : Disposable {
                 }, ModalityState.any())
             } catch (e: Exception) {
                 logger.error("Error retrieving credentials for NuGet dialog", e)
-                processedWindows.remove(window) // allow retry after transient error
+                // Must remove on EDT — processedWindows (WeakHashMap) is not thread-safe
+                ApplicationManager.getApplication().invokeLater({
+                    processedWindows.remove(window)
+                }, ModalityState.any())
             }
         }
     }
@@ -335,7 +345,8 @@ class NuGetDialogInterceptor : Disposable {
                 }
 
                 is JTextField -> {
-                    if (usernameField == null) usernameField = comp
+                    // Skip non-editable fields (e.g. read-only display fields showing the feed URL)
+                    if (usernameField == null && comp.isEditable) usernameField = comp
                 }
 
                 is Container -> {
@@ -353,14 +364,23 @@ class NuGetDialogInterceptor : Disposable {
     }
 
     /**
-     * Submit the dialog by finding and clicking appropriate buttons
+     * Submit the dialog by clicking its default button or the first matching submit button.
+     *
+     * Tries [JDialog.rootPane.defaultButton] first — this is set by the dialog author and
+     * is exactly the button that fires on Enter. Falls back to text-based button search
+     * for dialogs that don't set a default button.
      */
     private fun submitDialog(window: Window) {
+        // Most reliable: the dialog's declared default button (what Enter key would press)
+        val defaultButton = (window as? JDialog)?.rootPane?.defaultButton
+        if (defaultButton != null && defaultButton.isEnabled && defaultButton.isVisible) {
+            logger.info("Auto-submitting dialog using default button: ${defaultButton.text}")
+            defaultButton.doClick()
+            return
+        }
+
         val submitButton = findSubmitButton(window)
-        if (submitButton != null &&
-            submitButton.isEnabled &&
-            submitButton.isVisible
-        ) {
+        if (submitButton != null && submitButton.isEnabled && submitButton.isVisible) {
             logger.info("Auto-submitting dialog using button: ${submitButton.text}")
             submitButton.doClick()
             return
@@ -373,10 +393,15 @@ class NuGetDialogInterceptor : Disposable {
         fun searchForButton(comp: Component): JButton? {
             return when (comp) {
                 is JButton -> {
+                    // comp.text is lowercased before comparison — all checks are case-insensitive
                     val text = comp.text?.lowercase() ?: ""
                     if (text.contains("ok") ||
                         text.contains("login") ||
-                        text.contains("sign in")
+                        text.contains("log in") ||
+                        text.contains("sign in") ||
+                        text.contains("submit") ||
+                        text.contains("authenticate") ||
+                        text.contains("connect")
                     ) {
                         comp
                     } else null

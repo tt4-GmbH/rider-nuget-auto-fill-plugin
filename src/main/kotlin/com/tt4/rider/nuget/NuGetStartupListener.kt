@@ -2,6 +2,7 @@ package com.tt4.rider.nuget
 
 import com.intellij.openapi.application.ApplicationActivationListener
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.wm.IdeFrame
 import java.awt.Window
@@ -16,8 +17,10 @@ class NuGetStartupListener : ApplicationActivationListener {
     }
 
     override fun applicationActivated(ideFrame: IdeFrame) {
-        // Initialize the dialog interceptor when the application becomes active
-        ApplicationManager.getApplication().invokeLater {
+        // Initialize the dialog interceptor when the application becomes active.
+        // ModalityState.any() ensures initialization runs even if a modal credential
+        // dialog is already open (e.g. if appFrameCreated failed and this is the fallback).
+        ApplicationManager.getApplication().invokeLater({
             try {
                 logger.info("NuGet Auto-Fill plugin activating...")
 
@@ -40,7 +43,7 @@ class NuGetStartupListener : ApplicationActivationListener {
             } catch (e: Exception) {
                 logger.error("Failed to initialize NuGet Auto-Fill plugin", e)
             }
-        }
+        }, ModalityState.any())
     }
 
     override fun applicationDeactivated(ideFrame: IdeFrame) {

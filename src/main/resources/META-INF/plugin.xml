@@ -36,6 +36,17 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.11</h3>
+        <ul>
+            <li>Fixed: credentials could be filled into a dismissed dialog if the keychain lookup was slow — the plugin now checks that the dialog is still visible before filling</li>
+            <li>Fixed: auto-submit could click a button on an invisible dialog window — same visibility guard applied before submit</li>
+            <li>Fixed: a read-only text field showing the feed URL could be mistaken for the username input — only editable fields are now filled</li>
+            <li>Fixed: thread safety issue where processedWindows was modified from a background thread on credential lookup errors</li>
+            <li>Improved: auto-submit now tries the dialog's declared default button (the one activated by Enter) before falling back to text-based button search</li>
+            <li>Improved: auto-submit now also recognises "Submit", "Log In", "Authenticate", and "Connect" button labels</li>
+            <li>Improved: fallback startup listener now initialises the plugin with the correct modality state, so it works even if a credential dialog is already open</li>
+        </ul>
+
         <h3>Version 1.0.10</h3>
         <ul>
             <li>Fixed: after re-enabling a NuGet feed in Rider's package source settings, the credential dialog was not auto-filled — Rider reuses the same dialog window instance across restore attempts, and the plugin now retries when a previous fill attempt found no credentials</li>

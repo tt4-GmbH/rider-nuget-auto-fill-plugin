@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "com.tt4"
-version = "1.0.10"
+version = "1.0.11"
 
 repositories {
     mavenCentral()
