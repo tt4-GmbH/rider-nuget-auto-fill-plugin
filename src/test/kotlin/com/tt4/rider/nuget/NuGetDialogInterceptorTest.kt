@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import javax.swing.*
 
 class NuGetDialogInterceptorTest {
 
@@ -170,5 +171,73 @@ class NuGetDialogInterceptorTest {
         val match = NuGetDialogInterceptor.URL_PATTERN.find(text)
         assertNotNull(match)
         assertEquals("https://api.nuget.org/v3/index.json", match!!.value)
+    }
+
+    // -------------------------------------------------------------------------
+    // findUrlInLabels — component traversal
+    // -------------------------------------------------------------------------
+
+    private val nugetUrl = "https://api.nuget.org/v3/index.json"
+
+    @Test
+    fun `findUrlInLabels finds URL in JLabel`() {
+        val panel = JPanel()
+        panel.add(JLabel("Feed: $nugetUrl"))
+        assertEquals(nugetUrl, NuGetDialogInterceptor.findUrlInLabels(panel))
+    }
+
+    @Test
+    fun `findUrlInLabels finds URL in JTextArea`() {
+        val panel = JPanel()
+        panel.add(JTextArea("Please authenticate for $nugetUrl"))
+        assertEquals(nugetUrl, NuGetDialogInterceptor.findUrlInLabels(panel))
+    }
+
+    @Test
+    fun `findUrlInLabels finds URL in read-only JTextField`() {
+        val panel = JPanel()
+        val field = JTextField(nugetUrl)
+        field.isEditable = false
+        panel.add(field)
+        assertEquals(nugetUrl, NuGetDialogInterceptor.findUrlInLabels(panel))
+    }
+
+    @Test
+    fun `findUrlInLabels skips editable JTextField`() {
+        val panel = JPanel()
+        val field = JTextField(nugetUrl) // editable by default
+        panel.add(field)
+        assertNull(NuGetDialogInterceptor.findUrlInLabels(panel))
+    }
+
+    @Test
+    fun `findUrlInLabels skips JPasswordField`() {
+        val panel = JPanel()
+        panel.add(JPasswordField(nugetUrl))
+        assertNull(NuGetDialogInterceptor.findUrlInLabels(panel))
+    }
+
+    @Test
+    fun `findUrlInLabels finds URL in JEditorPane`() {
+        val panel = JPanel()
+        panel.add(JEditorPane("text/plain", "Feed URL: $nugetUrl"))
+        assertEquals(nugetUrl, NuGetDialogInterceptor.findUrlInLabels(panel))
+    }
+
+    @Test
+    fun `findUrlInLabels returns null when no URL present in any component`() {
+        val panel = JPanel()
+        panel.add(JLabel("Please enter your credentials"))
+        panel.add(JTextArea("No URL here"))
+        assertNull(NuGetDialogInterceptor.findUrlInLabels(panel))
+    }
+
+    @Test
+    fun `findUrlInLabels finds URL in nested container`() {
+        val outer = JPanel()
+        val inner = JPanel()
+        inner.add(JLabel("Feed: $nugetUrl"))
+        outer.add(inner)
+        assertEquals(nugetUrl, NuGetDialogInterceptor.findUrlInLabels(outer))
     }
 }

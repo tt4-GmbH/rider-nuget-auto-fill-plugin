@@ -36,6 +36,35 @@ class NuGetDialogInterceptor : Disposable {
          */
         internal val BASE_URL_PATTERN = Regex("""https?://[^\s<>"]+""")
 
+        /**
+         * Recursively searches text components for a URL matching [pattern].
+         * Checks JLabel, JTextArea, JEditorPane, and read-only JTextField (skipping editable
+         * fields to avoid reading the username input). JPasswordField extends JTextField and
+         * is editable, so it is always skipped.
+         * Defaults to URL_PATTERN (index.json URLs).
+         * Internal for unit testing.
+         */
+        internal fun findUrlInLabels(container: Container, pattern: Regex = URL_PATTERN): String? {
+            for (component in container.components) {
+                val text: String? = when (component) {
+                    is JLabel      -> component.text
+                    is JTextArea   -> component.text
+                    is JEditorPane -> component.text
+                    is JTextField  -> if (!component.isEditable) component.text else null
+                    else           -> null
+                }
+                if (text != null) {
+                    val match = pattern.find(text)
+                    if (match != null) return match.value
+                }
+                if (component is Container) {
+                    val found = findUrlInLabels(component, pattern)
+                    if (found != null) return found
+                }
+            }
+            return null
+        }
+
         /** Pure title-matching logic — exposed for testing */
         internal fun matchesCredentialTitle(title: String): Boolean {
             val credentialPatterns = listOf(
@@ -218,7 +247,26 @@ class NuGetDialogInterceptor : Disposable {
                 // Resolve the dialog URL to a stored feed URL.
                 // Handles dialogs that show the base URL without /index.json
                 // (e.g. "https://myserver.com/feed/" → "https://myserver.com/feed/index.json").
-                val resolvedUrl = credentialStore.resolveToStoredUrl(feedInfo.url)
+                // When no URL is visible in the dialog at all, fall back to the single enabled
+                // feed (if exactly one is configured).
+                val resolvedUrl: String? = if (feedInfo.url != null) {
+                    credentialStore.resolveToStoredUrl(feedInfo.url).also { resolved ->
+                        if (resolved == null)
+                            logger.info("[NuGetAutoFill] Dialog URL '${feedInfo.url}' did not match any stored feed")
+                    }
+                } else {
+                    val enabled = credentialStore.getAllFeeds().filter { it.enabled }
+                    when (enabled.size) {
+                        1 -> {
+                            logger.info("[NuGetAutoFill] No URL in credential dialog — using single enabled feed: ${enabled[0].feedUrl}")
+                            enabled[0].feedUrl
+                        }
+                        else -> {
+                            logger.info("[NuGetAutoFill] No URL in credential dialog and ${enabled.size} enabled feeds — cannot determine which feed to use")
+                            null
+                        }
+                    }
+                }
                 val credentials = credentialStore.getCredentials(resolvedUrl)
                 // fillCredentials() manipulates Swing components — must run on EDT
                 // ModalityState.any() ensures this runs even while the credential dialog is open
@@ -279,24 +327,6 @@ class NuGetDialogInterceptor : Disposable {
         val url = findUrlInLabels(window, URL_PATTERN)
             ?: findUrlInLabels(window, BASE_URL_PATTERN)
         return FeedInfo(url, null)
-    }
-
-    /**
-     * Recursively searches JLabel components for a URL matching [pattern].
-     * Defaults to the strict URL_PATTERN (index.json URLs) used for content-based detection.
-     */
-    private fun findUrlInLabels(container: Container, pattern: Regex = URL_PATTERN): String? {
-        for (component in container.components) {
-            if (component is JLabel) {
-                val match = pattern.find(component.text ?: "")
-                if (match != null) return match.value
-            }
-            if (component is Container) {
-                val found = findUrlInLabels(component, pattern)
-                if (found != null) return found
-            }
-        }
-        return null
     }
 
     /**

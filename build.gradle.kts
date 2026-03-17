@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "com.tt4"
-version = "1.0.11"
+version = "1.0.12"
 
 repositories {
     mavenCentral()
@@ -32,6 +32,7 @@ fun fetchRiderVersionsForVerification(sinceMajor: String): List<String> {
 
         // Group by major version, take the latest patch of each
         val stableVersions = stableReleases
+            .asSequence()
             .mapNotNull { release ->
                 val version = release["version"] as? String ?: return@mapNotNull null
                 val majorVersion = release["majorVersion"] as? String ?: return@mapNotNull null
@@ -41,6 +42,7 @@ fun fetchRiderVersionsForVerification(sinceMajor: String): List<String> {
             .filter { (major, _) -> major >= sinceMajor }
             .map { (_, versions) -> versions.maxOrNull()!! }
             .sorted()
+            .toList()
 
         // Fetch the latest EAP build number (Maven uses build number, not version string).
         // Only include it if it's actually available in the Maven repository.

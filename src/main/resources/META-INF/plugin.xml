@@ -36,6 +36,12 @@
     ]]></description>
 
 <change-notes><![CDATA[
+        <h3>Version 1.0.12</h3>
+        <ul>
+            <li>Fixed: credential dialogs without a visible feed URL now auto-fill when exactly one feed is configured — covers Rider dialogs that do not display the feed URL in a label</li>
+            <li>Fixed: feed URL was not detected when Rider rendered it in a text area, editor pane, or read-only text field instead of a label</li>
+        </ul>
+
         <h3>Version 1.0.11</h3>
         <ul>
             <li>Fixed: credentials could be filled into a dismissed dialog if the keychain lookup was slow — the plugin now checks that the dialog is still visible before filling</li>
